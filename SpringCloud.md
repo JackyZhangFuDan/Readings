@@ -3,7 +3,12 @@
 SAP有自己的微服务开发框架，我们日常开发工作都是在这套机制下进行的，但SAP Cloud Platform本身是Cloud Foundry的，和Pivitol的Cloud类似，那么Spring Cloud这一套技术上也是行得通的，所以我想了解一下Spring Cloud这一套，博采众家之长嘛。
 
 先看一下概览图，这个图我会满满丰富起来，目前是看到如下模块
-![](images/sc_overview.PNG)
+![](images/sc_overview.PNG)  
+
+以上这个构架，是没有Cloud Foundry这种基础设施的情况下也可行的，如果有了CF，那么服务的注册就CF自带了，每个应用服务都可以通过环境变量获知可用的其他服务；而服务的消费则可以考虑Spring的Cloud Connector项目中的各种服务连接器，它们能自动感知环境变量上给出的其它服务从而调用，所以有没有Cloud Foundry构架上会稍有不同。
+
+上面这个构架的话搭配Cloud Foundry二者有重叠的成分，但是搭配容器以及容器编织技术（Kubernetes等）的话就很合适了，容器编织不会像Cloud Foundry一样大力提供微服务基础设施（如服务注册），这还是留给Cloud Application自己了。
+
 
 ### Eureka - 服务治理  
 1. 服务注册  
