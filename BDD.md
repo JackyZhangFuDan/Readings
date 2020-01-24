@@ -107,8 +107,8 @@
 
 #### 正规化的产出  
 经过了正规化这一步，我们把Example分别描述成了Scenario，这些Scenario会被集中组织在Feature File里面，这就是我们的产出。在后续步骤中，Feature File会被关联到自动化测试用例上。  下面是一个Feature File的例子。  
-![bdd7](images/bdd7.png)  
-![bdd7](images/bdd8.png)  
+![bdd7](images/bdd7.PNG)  
+![bdd8](images/bdd8.PNG)  
 
 ## 第三步：自动化
 
