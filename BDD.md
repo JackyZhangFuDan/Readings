@@ -1,6 +1,8 @@
 # 行为驱动开发 - Behavior Driven Development  
 
-名字从英文直译过来稍显奇怪，不知道有没有其它更好的翻译。下面用到的时候我就直接用BDD来指代了。
+> 今天是2020.1.24日，大年三十，猪年的最后一天，谨以此文结束这充实的一年。祝读者鼠年吉祥
+
+”行为驱动开发“这个名字是从英文直译过来，稍显奇怪，不知道有没有其它更好的翻译。下面用到的时候我就直接用BDD来指代了。
 
 ## 是什么，解决什么问题
 
@@ -58,9 +60,63 @@
 上图给出一个书本上围绕”Pizza预定系统上，客户更改订单投送地址“这个需求的Example Mapping结果，给大家一个直观感受。  
 
 #### 何时开展需求探索呢？  
-这其实是个好问题。我的感觉是不要太刻板套用BDD的描述，当然BDD人家自己也没在这方面做规定，只是很多书中的例子会给出自己的做法。我们完全可以利用在项目中已经被熟知的会议开展Example Mapping。例如在我们的Scrum项目里有Planning Event，又分为Global Planning （有PO参与）和Local Planning（除PO之外的项目组成员参加），我们是在Local Planning时进行的。  
+这其实是个好问题。下面这张图也特别好，针对Scrum项目，它概括性地给出了各个BDD事件可以发生的时间点，不仅包含需求探索，还有之后各个步骤。  
+![bdd4](images/bdd4.PNG)  
+
+我的感觉是不要太刻板套用BDD的描述，当然BDD人家自己也没在这方面做规定，只是很多书中的例子会给出自己的做法。我们完全可以利用在项目中已经被熟知的会议开展Example Mapping。例如在我们的Scrum项目里有Planning Event，又分为Global Planning （有PO参与）和Local Planning（除PO之外的项目组成员参加），我们是在Local Planning时进行的。  
 
 也可以化整为零，就是不要搞特别长的Requirement Workshop，在当前迭代周期寻找可以利用的时间窗口把大家拉在一起，个把小时就可以来一次workshop，分析哪怕一个需求，这样积累下来很可能下个迭代周期的工作内容就有了。当然这需要PO的配合，能够提前比较长的时间给出下个迭代周期的需求，这个要求对很多项目组是挑战。  
 
-## 第二步：需求正规化
+## 第二步：需求正规化  
+
+需求探索给了我们Rule，Example和Assumption，主体是Exmaple，我们接下来要把它们正规化地表述出来，这就是所谓”需求正规化“。  
+正规化的基础是”[Gherkin](https://cucumber.io/docs/gherkin/reference/)“语法，这个语言语法本身非常简单，我不会展开讨论，只介绍影响你理解本文的部分。  
+
+#### Gherkin速览  
++ Scenario： 在Gherkin语言里，一个探索阶段给出的Example被一个Scenario描述，而Scenario又由Given - When - Then三部分组成，可以大致映射到Example的Context - Action - Output。
++ Given: 描述重要的前置条件，只给和我们结果强相关的，那些显而易见的前置条件不必累述。 
++ When： 给出用户的活动
++ Then： 结果
++ Feature： Feature是最大的一个概念，一个Feature 可以包含多个Scenario。一般一个Feature会实在描述在一个文件中，就是著名的Feature File了。  
+
+#### 什么样的Scenario是描述完好的呢
+看过了Gerkin 语法我们聚焦到Scenario的撰写上来。好的Scenario会满足BRIEF原则：
++ Business Language  
+尽量用Buisiness语言来表述，让项目组所有人，包括PO，Stakeholder等，都看得懂    
++ Real Data  
+不要写空泛的语句，与其说”输入一个数字“不如说”使用10.1作为价格输入“  
++ Intention Revealing    
+我们希望尽量用真实数据来描述，但不要针对那些无关紧要的细节过分使用数据，我们叫这样的数据为”Incidental Data“。我们始终聚焦在这个Scenario要体现的功能上，不偏离要点。  
++ Essential  
+我们要时刻关注Example所在的Rule，我们的Scenario为的是展示那个rule，以此为原则去忽略其它细节。  
++ Focused  
+我们每次只关注一个Rule。可能会出现一个Scenario既和rule 1有关，又和rule 2有关，那么我们可以考虑再写一个scenario，让它的描述去贴近另一个rule  
+
+一个Scenario既是给人读的，也是给机器读的。实践过程中经常出现的情况是只兼顾机器的可读，因为后续我们要实实在在地把Scenario和测试用例关联起来，所以机器可读性天然被重视；而忽略BDD**改善人与人交流**方式从而无误理解需求的本质。我们在写Given - When - Then的时候要特别强调人的可读性，它的priority高于机器的可读性。好的Scenario是短小精炼的人类语句，过长的话需要考虑拆分。设想我们有一个对技术一无所知的PO，他读过一个Scenario后，是否能够马上给出判断：这个就是/不是我要的结果！是的话就是好Sceanrio。  
+
+谈到Scenario的人类可读性要求就不得不提描述中的用语。BDD很推崇[Domain Driven Design](https://github.com/JackyZhangFuDan/Readings/blob/master/DomainDrivenDesign.md)中提及的Unbiquitous Language，每一个Bounded Context都会有一个自己的UL，它就像一个本项目组词汇库，它里面词汇代表的概念为大家所熟知。BDD希望我们项目建立自己的UL，并用UL中的词汇描述Scenario，
+
+优秀的Scenario还是建立在实在数据的基础上的，其描述不空，不虚不抽象。在给出Given-when-then时，合理设订数据来展示功能；同时描述基于项目设定的用户角色（Persona），通顺而且有带入感。
+
+由此可见写一个好的Scenario着实不易，不过我们整个团队不必从开始就达到很高水平，在实践中成长，向着目标逐步靠近就好。在文末提到的两本书里面有很好的撰写Scenario的指导，建议大家去阅读。一个书本上的Scenario例子：  
+![bdd5](images/bdd5.PNG)  
+
+这里我要特别强调一下，**千万不要把Scenario写成自动化脚本式的操作流水账**，如果它变成了脚本执行过程的总结那么它基本失去了人与人交流的功能，更不要提形成”活文档“了。下面给出一个反面例子：  
+![bdd6](images/bdd6.PNG)  
+这个Scenario完全符合语法要求，所以工具认它没有问题，但是人读下来肯定不知所云，太过繁琐，不必要的细节太多。
+
+#### 正规化的产出  
+经过了正规化这一步，我们把Example分别描述成了Scenario，这些Scenario会被集中组织在Feature File里面，这就是我们的产出。在后续步骤中，Feature File会被关联到自动化测试用例上。  下面是一个Feature File的例子。  
+![bdd7](images/bdd7.png)  
+![bdd7](images/bdd8.png)  
+
 ## 第三步：自动化
+
+构建中......
+
+## 参考资料  
+
+这篇文章是我读了如下这个BDD系列书籍总结出的，一共三本，前两本加起来才160页，很容易读；第三本主要讲工具，如何自动化，所以对于搞软件的我们估计也不难消化（这本书目前作者正在写作中）。有时间读一读吧。
++ 《[The BDD Books - Discovery: Explore behaviour using examples](https://leanpub.com/bddbooks-discovery)》
++ 《[The BDD Books - Formulation: Express examples using Given/When/Then](https://leanpub.com/bddbooks-formulation)》
++ 《[The BDD Books - Automation with Specflow](https://leanpub.com/specflowbook)》
