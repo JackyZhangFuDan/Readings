@@ -9,10 +9,10 @@
 
 ### 引入Toggle  
 假设开始时SR算法长这个样子 (JS代码）  
-'''javascript  
+```javascript  
 	function reticulateSplines(){
     	// current implementation lives here
   	}
-'''
+```
 
 我们来做一个最简单最直观的Toggle
