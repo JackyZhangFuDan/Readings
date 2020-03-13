@@ -10,9 +10,30 @@
 ### 引入Toggle  
 假设开始时SR算法长这个样子 (JS代码）  
 ```javascript  
-	function reticulateSplines(){
-    	// current implementation lives here
-  	}
+  function reticulateSplines(){
+   	// current implementation lives here
+  }
 ```
 
-我们来做一个最简单最直观的Toggle
+我们来做一个最简单最直观的Toggle:  
+```javascript  
+  function reticulateSplines(){
+    var useNewAlgorithm = false;
+    // useNewAlgorithm = true; // UNCOMMENT IF YOU ARE WORKING ON THE NEW SR ALGORITHM
+  
+    if( useNewAlgorithm ){
+      return enhancedSplineReticulation();
+    }else{
+      return oldFashionedSplineReticulation();
+    }
+  }
+  
+  function oldFashionedSplineReticulation(){
+    // current implementation lives here
+  }
+  
+  function enhancedSplineReticulation(){
+    // TODO: implement better SR algorithm
+  }
+```
+
