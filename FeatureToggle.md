@@ -100,9 +100,49 @@ Jacky注：Toggle Router是一个重要概念，它会为系统的其它部分�
 随着时间的推移，我们的开发渐渐完成，我们不再简单满足于自动化测试用例都通过，我们已经准备好在线上去实验新算法的功效了。那么第一个问题就是我们以什么形式来改变feature toggle的值呢？我们可以在三个层次上组织toggle的修改：  
 - Toggle的值被写进一个配置文件，不同的环境有不同的配置文件，在向这个环境部署代码的时候也会把对应的配置文件部署上去。而我们的Toggle Router会去读当前的配置文件，从而得到当前环境的toggle值。我们会在测试环境的配置文件中打开新SR算法的toggle，而在生产环境关闭。  
 - 引入一个配置UI，管理员可以通过这个UI改变当前application的toggle值。一旦新SR算法被管理员打开，整个系统的用户都会用到它。    
-- 我们改变Toggle Router的代码，让它更强大一点儿，能够分析当前user request以及当前环境，从而决定一个toggle的值。例如通过检测http header，检测cookie项等等。这最为灵活。
+- 我们改变Toggle Router的代码，让它更强大一点儿，能够分析当前user request以及当前环境(context)，从而决定一个toggle的值。例如通过检测http header，检测cookie项等等。这最为灵活。
 
 下面这张图描述了这三种不同方式：  
 ![toggle配置处](images/ft1.png)
 
 经过讨论，我们项目组选择了第三种，基于user request的toggle。大家觉得这既保护了在线的老版本正常服务，也为我们项目组提供了在生产环境测试的可能。
+
+### Canary Release  
+新SR算法发布了，经过Exploratory testing，一切正常。但team觉得这么重要的功能还是谨慎一点好，所以可以利用我们的Toggle机制做一次Canary Release。（Jacky注：不是所有类型的toggle都能支持canary release）  
+
+为了做Canary Release我们要把Toggle Router增强一下，让它”随机“抽取一小部分进来的用户请求启用新SR算法（Jacky注：作者在文章中指出Canary Release突出的是随机），我们注意收集这部分用户在使用新算法时的效果，这个过程一直持续到team对新算法有了完全的信心。
+
+### A/B Testing  
+游戏的产品经理听说了这件事情，她很兴奋，因为类似的机制可以解决她的一个棘手问题：产品团队一直在围绕是否提高游戏中犯罪率争论不休，有了这种机制不是正好可以收集一些数据让数据说话。但和canary release不同的是，可能我们需要观察固定用户群的行为从而做决定。这就是A/B Testing。
+
+这个小例子就完了。接下来我们围绕不同类别的FT深入探讨，看看它们为何不同。
+
+## Toggle的分类  
+Feature Toggles提供的根本能力是：能够在单一部署中ship不同的可以互相替换的代码路径（codepaths）。上面的例子很好的展示了这一点。同时FT的类型有多种，用同种方式管理它们会很痛苦。
+
+我们从两个维度划分FT：
+- 维度一：Toggle会存在多久
+- 维度二：Toggle的切换灵活性（how dynamic the toggling decision must be)，作者后面把这个维度分为三个层次：1) changes with a deployment, 2) changes with runtime re-configuration, 3) changes with each request
+
+我们先看看几类toggle，然后从这两个维度观察它们。下图展示了我们将要看到的这几类feature toggles。
+![toggle categories](images/ft2.png)
+
+### Release Toggles
+> Release Toggles allow incomplete and un-tested codepaths to be shipped to production as latent code which may never be turned on
+
+这类Toggle使得使用单分支开发的项目组能够实践持续交付（Continuous Delivery）。也就是说团队工作的半成品也可以被merge到主分支，之后打包发布到线上而不影响生产环境用户。这些半成本做为“潜伏代码（latent code）存在，它们可能在以后的某个时间点被激活，也可能将来被直接废弃。
+
+很多产品经理会使用“产品版本（product-centric version）”来防止未成熟的功能暴露给她的用户，其实这里的产品版本和Release Toggles手法是类似的。例如一个网上商店开发了一个功能可以为用户预测货物送达时间，功能已经开发和测试完成了，但是由于某些原因目前只有出自某一个供应商的商品的预测送达可靠，其它供应商的话这个功能由于缺数据而没有意义，那么产品经理可能决定等全部供应商都具备支持送达时间预测的能力时才向用户开发这个功能，在此之前，这个功能不会包含在她的产品版本中。产品经理有各种原因考虑推迟功能的发布，例如配合市场推广活动。***如此使用Release Toggles是我们实践CD一大原则”解偶功能发布和代码开发“的最普遍的方式。***
+
+从存在时间角度来说，Release Toggle存在时间一半比较固定，或者说短，因为产品的发布周期是相对固定的；从toggle切换灵活性角度来看，Release Toggle要求不高，在该版本运行过程中不太会切换toggle，和新产品版本一起配套发布一个toggle 配置文件就足以了。
+
+### Experiment Toggles  
+它被用来进行多变量测试（multivariate）或者说A/B测试。做法是把我们的用户分个类，然后呢给不同类的用户使用不同的codepath，最后观察各个用户群的效果或反馈，最后得出最优解法。这种方法往往被用于那些需要基于客观数据而进行改进的场景。
+
+Experiment Toggle估计不会存在很长实践，实验总归是个短时的行为，不太可能持续很久；它对toggle判断结果的灵活性要求是最高的：每个request进来都要根据该request的背景信息决定，“changes with a deployment" 或“changes with runtime re-configuration”。
+
+### Ops Toggles  
+运维过程中，它们被用来控制系统的行为。当我们对某个新功能带来的影响没谱儿，我们会考虑引入这样一个toggle，在必要时切换它到旧版本或关闭。
+
+很多Ops Toggle都是短命的，当我们对功能有信心了我们就拿掉它。但我们都知道系统里很普遍地长期存在着某些”杀手级开关“以备不测，所以说很难说这类开关存在实践短。从toggle切换的灵活程度来说，一半是有个管理界面，所以说达到运行时能配置这个级别就足够了。
+
