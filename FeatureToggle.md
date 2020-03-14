@@ -161,11 +161,11 @@ Experiment Toggle估计不会存在很长实践，实验总归是个短时的行
 ### 静态 VS 动态 toggle （static vs dynamic toggles）  
 如果Toggle需要根据运行时的信息来决定结果，往往需要针对Toogle Router做更多的实现工作（Jacky注：router代码复杂呗），同时配置这些router也相对复杂。例如上面提到的Experiment Toggle，它针对某些用户开放最新功能来收集对比数据，那么router需要实现我们制订好的用户分群信息从而作出决定。  
 而静态的toggle比较简单，配置项上已经写死了“on”和“off”，router只要读出来，然后直接把这个信息返回给请求放（Toggle Point）就完事儿了。  
-这里提到了Toggle的配置，后续会做更深入的讨论。
+这里提到了Toggle的配置，后续会做更深入的讨论。  
 ![staticdynamic](images/ft3.png)
 
 ### 长期存在 VS 短时 toggles
-对于短时存在的toggle，我们甚至只要用if/else临时对付一下就可以了，因为我们知道在不久的将来它们就会被清理；而对于将会长期存在的toggle则不然，我们需要在软件设计时好好设计，保证它们的可维护性。
+对于短时存在的toggle，我们甚至只要用if/else临时对付一下就可以了，因为我们知道在不久的将来它们就会被清理；而对于将会长期存在的toggle则不然，我们需要在软件设计时好好设计，保证它们的可维护性。  
 ![long transit](images/ft4.png)
 
 ## 实现Toggle的技术手段  
@@ -176,6 +176,8 @@ Experiment Toggle估计不会存在很长实践，实验总归是个短时的行
 
 假设我们做了一个新功能，可以让用户在发货通知email中通过点击一个链接来取消订单，我们决定用一个feature toggle来隐藏这个功能，实现如下：  
 ```javascript  
+invoiceEmailer.js
+
   const features = fetchFeatureTogglesFromSomewhere();
 
   function generateInvoiceEmail(){
@@ -188,4 +190,193 @@ Experiment Toggle估计不会存在很长实践，实验总归是个短时的行
   }
 ```  
 
+上面这种方式很常见，但是很脆弱。它把所有的toggle结果决定逻辑完全放在了toggle point内，考虑如下一些可能出现的情况或问题：  
+- 第一个要问的问题可能是：我做为这个功能的实现者，为什么要额外知道“next-gen-ecomm”这个magic string呢？这增加了我要考虑的因素，你可以要求我知道“这个功能可不是总是打开，有外部配置决定其是否可见”，但我可不想把“这个决定因素就是next-gen-ecomm这个配置项的取值“hardcode到我的代码里，因为你怎么保证它之后不会被其它项或逻辑替换？
+- next-gen-ecomm看起来是一个控制很多东西的magic string，如果哪天它的意义变掉了，不再控制我们这个功能，或者说我们这个功能对它的依赖逻辑变掉了，那么我们要来调整这部分代码；要知道像这个功能一样的toggle point可能有很多，那么要一个个找出来。  
+- 这个功能自身也可能决定不再依赖这个next-gen-ecomm，而是看用户群，那么我们要改这部分生产代码  
+
+那么我们通过加一个”层“ （Layer）来解决这个问题，这层将包含toggle的决定逻辑：  
+```javascript  
+featureDecisions.js
+
+  function createFeatureDecisions(features){
+    return {
+      includeOrderCancellationInEmail(){
+        return features.isEnabled("next-gen-ecomm");
+      }
+      // ... additional decision functions also live here ...
+    };
+  }
+  
+invoiceEmailer.js
+
+  const features = fetchFeatureTogglesFromSomewhere();
+  const featureDecisions = createFeatureDecisions(features);
+
+  function generateInvoiceEmail(){
+    const baseEmail = buildEmailForInvoice(this.invoice);
+    if( featureDecisions.includeOrderCancellationInEmail() ){
+      return addOrderCancellationContentToEmail(baseEmail);
+    }else{
+      return baseEmail;
+    }
+  }
+```
+我们引入了一个decision对象，让它提供方法来控制各个feature toggle的结果决定逻辑，目前我们只有一个 - 是否提供在email上cancel order的功能，并且其决定逻辑也很简单，只是读哪个magic string对应的项，但它集中了所有feature toggle的决定逻辑，要改东西我们直接来这里改就好了，如果逻辑变复杂，直接增强对应的方法就可以了。
+
+### 反转决定 （Inversion of Decision）  
+上面的改造取得了一些进步，但createInvoiceEmailler还是需要额外知道概念“featureDecisions”，并且要知道如何构造它并在需要的时候去构建，这是一种耦合，是对feature实现者负担的增加。如果考虑到后续的自动化测试，为该featureDecisioins做test double也会比较麻烦。于是我们可以进行控制反转，不再要该feature自己创建Decision而是外面创建好传给它：  
+```javascript  
+invoiceEmailer.js
+
+  function createInvoiceEmailler(config){
+    return {
+      generateInvoiceEmail(){
+        const baseEmail = buildEmailForInvoice(this.invoice);
+        if( config.includeOrderCancellationInEmail ){
+          return addOrderCancellationContentToEmail(email);
+        }else{
+          return baseEmail;
+        }
+      },
+  
+      // ... other invoice emailer methods ...
+    };
+  }
+  
+featureAwareFactory.js
+
+  function createFeatureAwareFactoryBasedOn(featureDecisions){
+    return {
+      invoiceEmailler(){
+        return createInvoiceEmailler({
+          includeOrderCancellationInEmail: featureDecisions.includeOrderCancellationInEmail()
+        });
+      },
+  
+      // ... other factory methods ...
+    };
+  }
+```  
+通过上面这顿改造，InvoiceEmailler不再用自己去构造decision， 外面会传给它。（Jacky注：上面这段代码和之前的版本变化很大，感觉需要更好理解JS才能很好地领会）。我们看看针对这个版本我们的测试可以怎么写：  
+```javascript
+describe( 'invoice emailling', function(){
+  it( 'includes order cancellation content when configured to do so', function(){
+    // Given 
+    const emailler = createInvoiceEmailler({includeOrderCancellationInEmail:true});
+
+    // When
+    const email = emailler.generateInvoiceEmail();
+
+    // Then
+    verifyEmailContainsOrderCancellationContent(email);
+  };
+
+  it( 'does not includes order cancellation content when configured to not do so', function(){
+    // Given 
+    const emailler = createInvoiceEmailler({includeOrderCancellationInEmail:false});
+
+    // When
+    const email = emailler.generateInvoiceEmail();
+
+    // Then
+    verifyEmailDoesNotContainOrderCancellationContent(email);
+  };
+});
+```  
+实际上这就是Dependency Injection Pattern的实现。通过上面的改造，email功能本身不再关心decision的创建。  
+
+### 变面条件语句  
+还有一个我们不太满意的点，toggle point那里用的if/else来决定是否使用新功能，就这个例子来说可能不是大问题，但如果一个feature决定与多个toggle的结果那我们还是希望避免if/else的简单方式。于是我们想到了“策略模式”：  
+```javascript  
+invoiceEmailler.js
+
+  function createInvoiceEmailler(additionalContentEnhancer){
+    return {
+      generateInvoiceEmail(){
+        const baseEmail = buildEmailForInvoice(this.invoice);
+        return additionalContentEnhancer(baseEmail);
+      },
+      // ... other invoice emailer methods ...
+  
+    };
+  }
+  
+featureAwareFactory.js
+
+  function identityFn(x){ return x; }
+  
+  function createFeatureAwareFactoryBasedOn(featureDecisions){
+    return {
+      invoiceEmailler(){
+        if( featureDecisions.includeOrderCancellationInEmail() ){
+          return createInvoiceEmailler(addOrderCancellationContentToEmail);
+        }else{
+          return createInvoiceEmailler(identityFn);
+        }
+      },
+  
+      // ... other factory methods ...
+    };
+  }
+```  
+上面的增强通过引入两个策略实现 ‘identityFn’和‘addOrderCancellationContentToEmail’（Jacky注：好像后者在代码块上没有给出来），这样if/else就没有必要了
+
+## 配置Toggle  
+### Dynamic routing vs dynamic configuration  
+前文我们简单谈过，一个Toggle的决定结果可能是动态的，是运行时决定的而不是系统一旦启动这个toggle的决定结果就固定下来了。实际上达到这种动态又可以分为两种方式：  
+- 提供手段可以re-configure一个toggle的值，从on切换到off或者反之。那么一旦切换好了，该toggle的决定结果将会改变。Ops toggle就是这种类型；  
+- toggle的决定结果本身有计算逻辑，它会考虑一些变化的因素例如当前请求的用户是谁。那么这种toggle实际上是非常灵活的。Experiment toggle就是这种类型。  
+  
+
+### 我们倾向让toggle值静态化  
+我们推荐通过源代码管理途径来管理toggle配置，并且改变toggle的值需要重新部署一次你的应用。（Jacky注：当然这种方式不一定满足你对toggle的要求，那肯定不能走这条路，作者只是说尽量用这种方式）。这样的话各个toggle的值在发布那一刻就决定了，它们随同代码一起走CD流程，这个toggle值的组合会被CD过程中的测试用例所测试。特别注意这种方式对测试的要求也是最低的，不必要测遍所有toggle值的所有组合，只要测当前组合能工作就好了（Jacky注：注意这并不是说我们写脚本时可以不考虑所有组合，因为如果我们改了toggle值，再走CD流程，我们的脚本应该也能测试这种组合而无需改脚本。所以在测试脚本（如UI E2E script）的编写时还是要考虑该组合）  
+
+### toggle配置管理方式  
+#### 硬编码的toggle  
+就像我们之前举的例子，toggle的开与关是通过移除/加上代码块来进行的。自然的，这种方式只适合那种允许该值就要重新部署的场景。  
+
+#### 参数化的toggle  
+上面的hardcode的方式太不灵活了，每次改变都要改代码再重新部署，一种避免这种死板方式的手段是用命令行参数（Jacky注：在启动app时给定）或环境变量。这种方式在改变toggle时需要重新部署。  
+
+#### Toggle配置文件  
+把配置写在配置文件里，需要改时就改一下这个文件然后再部署一下。  
+
+#### 用数据库存储Toggle配置  
+配置的值放在数据库里，然后提供一个Admin UI来改变这个配置  
+
+### 分布式toggle配置  
+Zookeeper，etcd或Consul这些工具是在分布式软件构架下广泛应用的分布式配置存储地，自然也可以用在toggle上。  
+
+### 配置的覆盖  
+此处略去，因为我觉得并不是很普遍，也不是很紧迫。  
+
+## 应对Feature-toggle系统  
+尽管FT是个挺不错的理念，但同时也会带来许多复杂性，我们需要认真面对。所以我们要遵循一些原则。  
+
+### 要开放当前toggle值供查询  
+这很有用。Spring Boot的Actuator Endpoints就是一个很好的手段。  
+
+### 利用结构化的文件配置Toggle  
+用类似YAML之类的结构化文件存储配置，用source control来管理这些配置文件。  
+
+### 区别对待不同类型的toggle  
+前面我们对toggle进行了分类，建议要明确区分并集中同类型的toggle。虽然可能所有的toggle还是放在同一个技术手段（如文件）中处理，但这种区分还是会有好处。  
+toggle的类型会变的，开始时没做好，我们用一个release toggle，做好了，想去做个用户验证，于是这个toggle变成Experiment toggle，最后能我们决定上线，但处于某些原因我们希望长期保留kill掉它的可能性，于是它又变成了一个ops toggle。在这整个过程中，toggle point中的代码没有任何变动，但配置的操作位置可能是要变动的，例如ops toggle一般是放在一个admin ui上的。
+
+### Feature Toggle带来了复杂性  
+从测试角度来想，很明显引入一个toggle就引入两种要测场景，理论上来说呢2个互相影响的toggle就4个场景，3个就8个场景，指数级增长，所以测试将非常复杂。但其实也未必像我们想象的那么糟糕，因为绝大多数toggle之间不会相互影响，两个相互之间不干扰的toggle我们只要分别测一下它们的可能值就可以了，不会出现指数级增长的情况。  
+
+一个比较好的简单的处理方式是，测试时一定测试那些production上打开的toggle和你要在release时发布为打开状态的toggle，以这个组合为toggle组合进行测试。
+
+如果你有toggle是不能在运行时修改的，那么测试起来就可能比较麻烦，可能需要多次再打包再部署也说不定。所以作者建议为feature toggle都提供打开/关闭它用的endpoint，但很显然这些endpoint一定要限定在测试的范围内使用，如果被滥用可能造成很大危害。  
+
+### 把toggle放在哪里呢？  
+#### 把toggle放在最前沿  （Jacky注：这实际上是要讨论把toggle point放在哪里。）
+对于per-request的toggle，往往会把toggle point选在整个系统的最前端 - 对于web应用来说就是在生成网页时。  
+#### 放在“内核”中  
+通过把toggle point 放在你的构建深层，你用它来控制某些功能的实现方式。
+
+### 留意长期背负Feature Toggle所产生的消耗  
+Toggle 数量的积累无论对代码复杂性还是系统的测试复杂性都会有显著提升，所以一定不要忘记经常回顾是否有可能移除一些过时的toggle。
 
