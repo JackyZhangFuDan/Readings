@@ -34,3 +34,29 @@ feature toggle没必要之时，就是我们新功能完全取代老功能之日
 
 另外在这个[链接中](https://featureflags.io/feature-flags-database-migrations/)，作者分析了完全的数据库切换 - 开始用MangoDB，之后切换到其它一种 - 时如何用toggle来辅助完成，比较有启发性，建议看看。总的来说步骤可以用下图描述：  
 ![dbmigration](images\ft5.jpg)
+
+## 拿掉Toggle的同时，清理相关代码  
+这个容易忘，所有这些Toggle Point上的代码在新功能替代老功能后都可以简化，它们是废弃代码会污染我们的设计。  在[这个链接中](https://dzone.com/articles/feature-toggles-are-one-worst)，作者把Feature Toggle看作是最糟糕的技术债而应该尽量避免。
+
+## 自动化测试与Feature Toggle  
+这个在上一篇里也有讨论，这里再明确一下。我们讨论前后端分离的项目，假设前端UI5后端Java。后端的自动化主要包含：  
+- UT
+- Integration （如Spring MockMvc）  
+前端自动化测试包括：  
+- UT （QUnit）
+- Integration （如SAP OPA）  
+- UI E2E测试 （如Webdriver.io脚本）  
+
+对于UT，无论前后端，都相对好处理：针对每个toggle的每种情况我们都尽量覆盖到就完了, 这个和没有考虑toggle是否存在而是仅仅考虑一个个代码分支没有区别，覆盖它们天经地义。
+
+对于Integration可能就比较棘手了，因为会涉及toggle组合的爆炸，把这些组合都测到是不可能的（5个toggle的话，将有32种组合，CALM Build目前我们有不下20个Toggle），那么我们要有选择性地进行组合测试，在[这个链接中](https://launchdarkly.com/blog/testing-with-feature-flags/)给出的建议感觉不错：  
+- 测试当前线上版本正在打开的toggle组合（Test the current production state）
+- 测试Toggle服务不可用的情形（Test for disaster scenario)  
+这个适用于那种由单独服务来提供toggle决定结果的情况。那么当这个服务不可用的时候，toggle会有默认结果，这个默认结果的组合是否能正常工作呢？这个需要考虑一下。 但感觉如果toggle router的代码也是自己的，toggle configuration也在自己服务的范围内，那么没有必要做这个。  
+- 对于结果决定于当前User Request的Toggle  
+这类Toggle往往会与不同的persona相对应，那么我们可以选取比较典型的persona，确保它们会激活对应的toggle决定结果。
+
+对于UI E2E脚本的创建策略我觉得和Integration情况类似。并且这类脚本会更少，只覆盖主线。
+
+为了能更好的支持前后端Integration和UI E2E的测试，技术上要有办法让脚本去读取和改变Toggle的配置值。虽然可能很累，但前后端的Integration还是有可能Test Double来达到目的的，但前端的UI E2E肯定做不到，***这就要求我们提供修改这些Toggle的Endpoint（肯定不是让所有人能用），并且不能引入安全隐患***。
+
