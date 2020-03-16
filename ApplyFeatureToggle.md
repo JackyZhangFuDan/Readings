@@ -33,7 +33,7 @@ feature toggle没必要之时，就是我们新功能完全取代老功能之日
 其实技术手段肯定有，主要是我们自己思想上要有“能做”的信念，而不是咬定“不好做”去推PO不做这个功能或是牺牲新老切换的便利。
 
 另外在这个[链接中](https://featureflags.io/feature-flags-database-migrations/)，作者分析了完全的数据库切换 - 开始用MangoDB，之后切换到其它一种 - 时如何用toggle来辅助完成，比较有启发性，建议看看。总的来说步骤可以用下图描述：  
-![dbmigration](images\ft5.jpg)
+![dbmigration](images/ft5.jpg)
 
 ## 拿掉Toggle的同时，清理相关代码  
 这个容易忘，所有这些Toggle Point上的代码在新功能替代老功能后都可以简化，它们是废弃代码会污染我们的设计。  在[这个链接中](https://dzone.com/articles/feature-toggles-are-one-worst)，作者把Feature Toggle看作是最糟糕的技术债而应该尽量避免。
