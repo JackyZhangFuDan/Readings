@@ -5,3 +5,4 @@
 3. [Behavior Driven Development](BDD.md)
 4. [Spring Cloud 功能模块总结](SpringCloud.md)
 5. [Feature Toggle](FeatureToggle.md)
+6. [应用 Feature Toggle](ApplyFeatureToggle.md)
