@@ -6,5 +6,6 @@
 4. [Spring Cloud 功能模块总结](SpringCloud.md)
 5. [Feature Toggle](FeatureToggle.md)
 6. [应用 Feature Toggle](ApplyFeatureToggle.md)  
-有时候，我也会记录，分享一些项目管理和团队管理方面的感想。  
+
+一些项目管理和团队管理方面的感想。  
 1. [如果一切从0开始...](StartFrom0.md)
